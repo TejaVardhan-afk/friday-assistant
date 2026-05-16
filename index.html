@@ -5,7 +5,9 @@
     <title>FRIDAY OS</title>
     <style>
         body { background: #0a0f1d; color: #00f3ff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        .arc-reactor { width: 150px; height: 150px; border-radius: 50%; border: 4px double #00f3ff; box-shadow: 0 0 20px #00f3ff; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: pulse 2s infinite; font-size: 3rem;}
+        .arc-reactor { width: 150px; height: 150px; border-radius: 50%; border: 4px double #00f3ff; box-shadow: 0 0 20px #00f3ff; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: pulse 2s infinite; font-size: 3rem; transition: all 0.3s ease;}
+        /* New styling for when FRIDAY is listening */
+        .listening { border-color: #ff003c; box-shadow: 0 0 35px #ff003c; } 
         #status { margin-top: 20px; font-size: 1.2rem; text-shadow: 0 0 5px #00f3ff; max-width: 80%; text-align: center; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); box-shadow: 0 0 35px #00f3ff; } 100% { transform: scale(1); } }
     </style>
@@ -13,13 +15,15 @@
 <body>
 
     <div class="arc-reactor" id="start-btn">🤖</div>
-    <div id="status">Click the Arc Reactor to Wake FRIDAY</div>
+    <div id="status">Click the Core Once to Initiate Hands-Free Mode</div>
 
     <script>
-        const BACKEND_URL = "https://friday-core.onrender.com/chat";
+        // YOUR EXACT LINK IS ALREADY HERE:
+        const BACKEND_URL = "https://friday-core.onrender.com/chat"; 
         
         const startBtn = document.getElementById('start-btn');
         const statusText = document.getElementById('status');
+        let systemAwake = false;
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
@@ -27,15 +31,30 @@
         } else {
             const recognition = new SpeechRecognition();
             recognition.lang = 'en-US';
+            recognition.interimResults = false;
 
+            // Initial Click to bypass browser security
             startBtn.addEventListener('click', () => {
-                recognition.start();
-                statusText.innerText = "Listening, Boss...";
+                if (!systemAwake) {
+                    systemAwake = true;
+                    startListening();
+                }
             });
+
+            function startListening() {
+                try {
+                    recognition.start();
+                    statusText.innerText = "Listening, Boss...";
+                    startBtn.classList.add("listening"); // Turns the core Red
+                } catch (e) {
+                    // Ignore errors if it's already started
+                }
+            }
 
             recognition.onresult = async (event) => {
                 const userText = event.results[0][0].transcript;
                 statusText.innerText = `You: "${userText}"`;
+                startBtn.classList.remove("listening"); // Turn off red glow while thinking
 
                 try {
                     const response = await fetch(BACKEND_URL, {
@@ -47,6 +66,14 @@
                     speak(data.reply);
                 } catch (error) {
                     statusText.innerText = "Connection lost to FRIDAY core.";
+                    startListening(); // Restart mic even if there is an error
+                }
+            };
+
+            // If the microphone cuts out silently, force it back on
+            recognition.onend = () => {
+                if (systemAwake && !window.speechSynthesis.speaking) {
+                    startListening();
                 }
             };
         }
@@ -58,6 +85,14 @@
             const irishVoice = voices.find(v => v.lang.includes('en-IE')) || voices.find(v => v.lang.includes('en-GB'));
             if (irishVoice) utterance.voice = irishVoice;
             utterance.rate = 1.1; 
+            
+            // THE MAGIC TRICK: When she finishes talking, immediately turn the mic back on
+            utterance.onend = () => {
+                if (systemAwake) {
+                    startListening();
+                }
+            };
+
             window.speechSynthesis.speak(utterance);
         }
     </script>
