@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FRIDAY OS</title>
+    <style>
+        body { background: #0a0f1d; color: #00f3ff; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .arc-reactor { width: 150px; height: 150px; border-radius: 50%; border: 4px double #00f3ff; box-shadow: 0 0 20px #00f3ff; display: flex; align-items: center; justify-content: center; cursor: pointer; animation: pulse 2s infinite; font-size: 3rem;}
+        #status { margin-top: 20px; font-size: 1.2rem; text-shadow: 0 0 5px #00f3ff; max-width: 80%; text-align: center; }
+        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); box-shadow: 0 0 35px #00f3ff; } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body>
+
+    <div class="arc-reactor" id="start-btn">🤖</div>
+    <div id="status">Click the Arc Reactor to Wake FRIDAY</div>
+
+    <script>
+        // 🛑 PASTE YOUR RENDER URL INSIDE THE QUOTES BELOW 🛑
+        const BACKEND_URL = "https://friday-core.onrender.com/chat"; // Make sure your URL ends with /chat
+        
+        const startBtn = document.getElementById('start-btn');
+        const statusText = document.getElementById('status');
+
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            statusText.innerText = "Speech recognition not supported in this browser. Please use Chrome.";
+        } else {
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+
+            startBtn.addEventListener('click', () => {
+                recognition.start();
+                statusText.innerText = "Listening, Boss...";
+            });
+
+            recognition.onresult = async (event) => {
+                const userText = event.results[0][0].transcript;
+                statusText.innerText = `You: "${userText}"`;
+
+                try {
+                    const response = await fetch(BACKEND_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: userText })
+                    });
+                    const data = await response.json();
+                    speak(data.reply);
+                } catch (error) {
+                    statusText.innerText = "Connection lost to FRIDAY core.";
+                }
+            };
+        }
+
+        function speak(text) {
+            statusText.innerText = `FRIDAY: ${text}`;
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+            const irishVoice = voices.find(v => v.lang.includes('en-IE')) || voices.find(v => v.lang.includes('en-GB'));
+            if (irishVoice) utterance.voice = irishVoice;
+            utterance.rate = 1.1; 
+            window.speechSynthesis.speak(utterance);
+        }
+    </script>
+</body>
+</html>
